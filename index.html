@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galaoum AI Engine v6.0</title>
+  <meta name="description" content="أقوى مساعد ذكاء اصطناعي — تطوير عمار جلعوم">
+
+  <!-- ═══ PWA v6.0 ═══ -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Galaoum AI">
+
+  <!-- Tailwind CSS (CDN — مرة واحدة فقط) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+  /* ══ لوحة المعاينة الحية ══ */
+  #live-preview-panel {
+    position:fixed; top:0; right:0; bottom:0;
+    width:min(500px,48vw);
+    background:linear-gradient(160deg,#06001a,#03000e);
+    border-left:1px solid rgba(124,58,237,0.18);
+    backdrop-filter:blur(20px);
+    z-index:200;
+    transform:translateX(100%); opacity:0;
+    transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .3s;
+    pointer-events:none;
+    display:flex; flex-direction:column;
+    box-shadow:-6px 0 40px rgba(0,0,0,.5);
+  }
+  #live-preview-panel.open { transform:translateX(0); opacity:1; pointer-events:all; }
+
+  #lp-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px;
+    background:rgba(0,0,0,.4);
+    border-bottom:1px solid rgba(124,58,237,.15);
+    flex-shrink:0;
+  }
+  #lp-header-title {
+    font-size:13px; font-weight:700; color:#c4b5fd;
+    display:flex; align-items:center; gap:6px;
+  }
+  .lp-dot { color:#4ade80; animation:lp-blink 1.2s ease infinite; font-size:10px; }
+  @keyframes lp-blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  #lp-close-btn {
+    background:none; border:none; color:#64748b; cursor:pointer;
+    font-size:16px; padding:4px 8px; border-radius:6px;
+    transition:all .2s; font-family:inherit; line-height:1;
+  }
+  #lp-close-btn:hover { background:rgba(255,255,255,.08); color:#e2e8f0; }
+
+  #lp-body { flex:1; overflow:auto; display:flex; flex-direction:column; min-height:0; }
+
+  /* مركز */
+  .lp-center { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; height:100%; padding:24px; }
+
+  /* spinner */
+  .lp-spinner {
+    width:36px; height:36px; border-radius:50%;
+    border:3px solid rgba(124,58,237,.15);
+    border-top-color:#7c3aed;
+    animation:lp-spin .8s linear infinite;
+  }
+  .lp-spinner-lg { width:56px; height:56px; border-width:4px; }
+  @keyframes lp-spin { to { transform:rotate(360deg); } }
+
+  /* progress bar */
+  .lp-progress { width:160px; height:4px; background:rgba(255,255,255,.08); border-radius:99px; overflow:hidden; }
+  .lp-progress-bar { height:100%; width:0%; background:linear-gradient(90deg,#7c3aed,#06b6d4); animation:lp-prog 20s linear forwards; }
+  @keyframes lp-prog { to { width:95%; } }
+
+  .lp-hint   { font-size:12px; color:#64748b; text-align:center; line-height:1.6; }
+  .lp-deploy-title { font-size:15px; font-weight:700; color:#e2e8f0; }
+  .lp-emoji  { font-size:52px; line-height:1; }
+  .lp-success{ font-size:17px; font-weight:800; color:#4ade80; }
+  .lp-err    { font-size:13px; color:#c4b5fd; text-align:center; }
+
+  /* toolbar */
+  .lp-toolbar { display:flex; align-items:center; justify-content:space-between; padding:7px 12px; background:rgba(0,0,0,.3); border-bottom:1px solid rgba(255,255,255,.05); flex-shrink:0; }
+  .lp-tag  { font-size:10px; color:#475569; }
+  .lp-link { font-size:11px; color:#a78bfa; text-decoration:none; }
+  .lp-link:hover { text-decoration:underline; }
+
+  /* iframe */
+  .lp-iframe { flex:1; border:none; background:#fff; min-height:0; }
+
+  /* صورة */
+  .lp-img-wrap { display:flex; flex-direction:column; gap:12px; padding:12px; height:100%; box-sizing:border-box; }
+  .lp-prompt-box { font-size:11px; color:#94a3b8; background:rgba(255,255,255,.04); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.06); line-height:1.5; }
+  .lp-img-area { flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; min-height:0; }
+  .lp-img { max-width:100%; max-height:100%; border-radius:12px; object-fit:contain; }
+  .lp-dl-btn { display:block; text-align:center; padding:8px; background:rgba(124,58,237,.25); border:1px solid rgba(124,58,237,.45); border-radius:8px; color:#c4b5fd; font-size:12px; text-decoration:none; transition:all .2s; }
+  .lp-dl-btn:hover { background:rgba(124,58,237,.4); }
+
+  /* ملفات / tabs */
+  .lp-tabs-bar { display:flex; gap:4px; padding:8px; overflow-x:auto; flex-shrink:0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .lp-tab { padding:4px 10px; border-radius:6px; border:none; cursor:pointer; font-size:10px; font-family:monospace; background:rgba(255,255,255,.04); color:#64748b; white-space:nowrap; transition:all .2s; }
+  .lp-tab.active { background:rgba(124,58,237,.22); color:#c4b5fd; }
+  .lp-tab:hover:not(.active) { background:rgba(255,255,255,.08); color:#94a3b8; }
+  .lp-file-meta { padding:5px 12px; background:rgba(0,0,0,.2); border-bottom:1px solid rgba(255,255,255,.04); display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .lp-file-meta span { font-size:11px; color:#94a3b8; font-family:monospace; }
+  .lp-chars { color:#475569 !important; font-size:10px !important; }
+  .lp-code { flex:1; margin:0; padding:14px; overflow:auto; font-size:11px; line-height:1.7; color:#e2e8f0; font-family:'Fira Code',Consolas,monospace; white-space:pre-wrap; word-break:break-word; background:transparent; min-height:0; }
+
+  /* بحث */
+  .lp-search-q { padding:10px 14px; font-size:12px; font-weight:600; color:#94a3b8; border-bottom:1px solid rgba(255,255,255,.05); flex-shrink:0; }
+  .lp-cards { display:flex; flex-direction:column; gap:8px; padding:10px 12px; overflow-y:auto; }
+  .lp-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:10px 12px; }
+  .lp-card-text { font-size:11px; color:#cbd5e1; line-height:1.6; }
+
+  /* زر فتح الموقع */
+  .lp-site-btn { padding:10px 22px; background:rgba(74,222,128,.18); border:1px solid rgba(74,222,128,.38); color:#4ade80; border-radius:10px; text-decoration:none; font-size:13px; font-weight:600; transition:all .2s; }
+  .lp-site-btn:hover { background:rgba(74,222,128,.3); }
+
+  /* زر تبديل اللوحة في الهيدر */
+  #lp-toggle-btn {
+    padding:4px 10px; border-radius:8px; border:1px solid rgba(124,58,237,.25);
+    background:rgba(124,58,237,.1); color:#a78bfa; font-size:11px; cursor:pointer;
+    transition:all .2s; font-family:inherit; font-weight:600;
+  }
+  #lp-toggle-btn:hover { background:rgba(124,58,237,.22); }
+  #lp-toggle-btn.has-content { border-color:rgba(124,58,237,.55); background:rgba(124,58,237,.2); animation:lp-glow .8s ease alternate infinite; }
+  @keyframes lp-glow { from{box-shadow:0 0 0px rgba(124,58,237,0)} to{box-shadow:0 0 8px rgba(124,58,237,.5)} }
+
+  @media(max-width:768px) {
+    #live-preview-panel { width:100vw; }
+  }
+  </style>
+</head>
+<body class="min-h-screen" style="background:linear-gradient(135deg,#030008 0%,#070010 40%,#030008 100%)">
+
+  <!-- Ambient glow blobs -->
+  <div class="glow-blob-1"></div>
+  <div class="glow-blob-2"></div>
+  <div class="glow-blob-3"></div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container"></div>
+
+  <!-- نافذة الذاكرة -->
+  <div id="memory-viewer"></div>
+
+  <!-- ════════════════════════════════════════════
+       مودال إدارة مفاتيح Gemini
+       ════════════════════════════════════════════ -->
+  <div id="keys-modal" style="
+    display:none;position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);
+    align-items:center;justify-content:center;padding:16px;
+  " onclick="if(event.target===this)closeKeysManager()">
+
+    <div style="
+      width:100%;max-width:520px;max-height:90vh;overflow-y:auto;
+      background:linear-gradient(135deg,#0d0000,#130000);
+      border:1px solid rgba(220,38,38,0.3);
+      border-radius:20px;padding:24px;
+      box-shadow:0 25px 60px rgba(0,0,0,0.8),0 0 40px rgba(220,38,38,0.1);
+    ">
+
+      <!-- رأس المودال -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <div style="font-size:17px;font-weight:800;color:#fca5a5">🔑 مفاتيح Gemini API</div>
+          <div id="keys-summary" style="font-size:11px;color:#475569;margin-top:3px">0 / 3 مفاتيح مضبوطة</div>
+        </div>
+        <button onclick="closeKeysManager()" style="
+          width:32px;height:32px;border-radius:8px;
+          background:rgba(255,255,255,0.06);
+          border:1px solid rgba(255,255,255,0.1);
+          color:#64748b;font-size:16px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+        ">✕</button>
+      </div>
+
+      <!-- شرح مختصر -->
+      <div style="
+        background:rgba(220,38,38,0.08);
+        border:1px solid rgba(220,38,38,0.2);
+        border-radius:12px;padding:12px 14px;
+        font-size:12px;color:#94a3b8;
+        margin-bottom:18px;line-height:1.7;
+      ">
+        📌 أضف حتى <strong style="color:#fca5a5">3 مفاتيح</strong> — المشروع يتنقل بينها تلقائياً عند تجاوز الحد.<br>
+        احصل على مفاتيح مجانية من:
+        <a href="https://aistudio.google.com/app/apikey" target="_blank"
+           style="color:#dc2626;text-decoration:underline">aistudio.google.com</a>
+      </div>
+
+      <!-- قائمة المفاتيح -->
+      <div id="keys-list" style="display:flex;flex-direction:column;gap:12px"></div>
+
+      <!-- أزرار السفل -->
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button id="test-all-btn" onclick="testAllKeysUI()" style="
+          flex:1;padding:10px;border-radius:12px;
+          background:rgba(220,38,38,0.15);
+          border:1px solid rgba(220,38,38,0.3);
+          color:#fca5a5;font-size:13px;cursor:pointer;
+          font-family:inherit;font-weight:600;transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(220,38,38,0.25)'"
+           onmouseout="this.style.background='rgba(220,38,38,0.15)'">
+          🔍 فحص الجميع
+        </button>
+        <button id="save-keys-btn" onclick="saveAllKeys()" style="
+          flex:1;padding:10px;border-radius:12px;
+          background:linear-gradient(135deg,#dc2626,#991b1b);
+          border:none;color:#fff;font-size:13px;cursor:pointer;
+          font-family:inherit;font-weight:600;
+          box-shadow:0 4px 15px rgba(220,38,38,0.35);transition:all 0.2s;
+        ">
+          💾 حفظ المفاتيح
+        </button>
+      </div>
+    </div>
+  </div>
+
+  
+    <!-- مودال إدارة مفاتيح المزودين -->
+    <div id="providers-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeProvidersManager()">
+      <div style="width:100%;max-width:520px;max-height:90vh;overflow-y:auto;background:linear-gradient(135deg,#05001a,#0a0020);border:1px solid rgba(124,58,237,0.3);border-radius:20px;padding:24px;box-shadow:0 25px 60px rgba(0,0,0,0.8);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div>
+            <div style="font-size:17px;font-weight:800;color:#c4b5fd">🔑 مفاتيح المزودين</div>
+            <div id="providers-summary" style="font-size:11px;color:#475569;margin-top:3px">0 / 3 مضبوطة</div>
+          </div>
+          <button onclick="closeProvidersManager()" style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;font-size:16px;cursor:pointer;">✕</button>
+        </div>
+        <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:12px 14px;font-size:12px;color:#94a3b8;margin-bottom:18px;">🔑 أدر مفاتيح OpenRouter وCerebras وFal.ai — احفظها وافحصها من هنا</div>
+        <div id="providers-list" style="display:flex;flex-direction:column;gap:12px"></div>
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button id="test-all-providers-btn" onclick="testAllProviderKeys()" style="flex:1;padding:10px;border-radius:12px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#c4b5fd;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">🔍 فحص الجميع</button>
+          <button id="save-providers-btn" onclick="saveAllProviderKeys()" style="flex:1;padding:10px;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#5b21b6);border:none;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">💾 حفظ المفاتيح</button>
+        </div>
+      </div>
+    </div>
+  
+  <!-- Drag & Drop Overlay -->
+  <div id="drag-overlay">
+    <div style="font-size:48px">📁</div>
+    <div style="font-size:18px;color:#fca5a5;font-weight:700;margin-top:12px">أسقط الملفات هنا</div>
+    <div style="font-size:13px;color:#94a3b8;margin-top:6px">ZIP، صور، كود — كل شيء</div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       التخطيط الرئيسي
+       ════════════════════════════════════════════ -->
+  <div class="flex h-screen overflow-hidden">
+
+    <!-- ── الشريط الجانبي (قائمة المحادثات) ── -->
+    <aside style="
+      width: 260px; flex-shrink: 0;
+      background: rgba(0,0,0,0.6);
+      border-left: 1px solid rgba(220,38,38,0.15);
+      backdrop-filter: blur(20px);
+      display: flex; flex-direction: column;
+      padding: 16px 12px; gap: 12px;
+      overflow: hidden;
+    ">
+      <!-- الشعار -->
+      <div style="text-align:center;padding:12px 0 16px;border-bottom:1px solid rgba(220,38,38,0.15)">
+        <div style="font-size:28px;margin-bottom:4px">🤖</div>
+        <div style="font-size:14px;font-weight:800;color:#fca5a5;letter-spacing:-0.3px">Galaoum AI</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px">Engine v6.0 • عمار جلعوم</div>
+      </div>
+
+      <!-- زر محادثة جديدة -->
+      <button class="new-conv-btn" onclick="newConversation()">
+        ✚ محادثة جديدة
+      </button>
+
+      <!-- عداد المحادثات -->
+      <div style="font-size:11px;color:#475569;padding:0 4px;display:flex;justify-content:space-between">
+        <span>المحادثات</span>
+        <span id="conv-count">0 محادثة</span>
+      </div>
+
+      <!-- قائمة المحادثات -->
+      <div id="conv-list" class="conv-list-wrap"></div>
+
+      <!-- أدوات الأنظمة القديمة -->
+      <div style="border-top:1px solid rgba(220,38,38,0.1);padding-top:10px">
+        <div style="font-size:10px;color:#475569;margin-bottom:6px;padding:0 4px">🛠️ الأدوات — v3</div>
+        <button class="sidebar-tool-btn" onclick="openKeySelector()" style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);font-weight:700">🔑 اختر مزود الذكاء الاصطناعي</button>
+
+        <!-- ══ أنظمة متقدمة ══ -->
+        <div style="font-size:9px;color:#334155;text-align:center;padding:4px 0 2px;letter-spacing:1px;text-transform:uppercase">أنظمة متقدمة</div>
+
+        <button id="parallel-toggle-btn" class="sidebar-tool-btn"
+          onclick="ParallelEngine&&ParallelEngine.openPanel()"
+          style="color:#ef4444;border-color:rgba(239,68,68,0.2)">⚡ متوازي OFF</button>
+
+        <button id="taskplanner-toggle-btn" class="sidebar-tool-btn"
+          onclick="TaskPlanner&&TaskPlanner.setEnabled(!TaskPlanner.isEnabled())"
+          style="color:#64748b">📋 مخطط OFF</button>
+
+        <button class="sidebar-tool-btn"
+          onclick="MCPClient&&MCPClient.openPanel()"
+          style="color:#60a5fa;border-color:rgba(96,165,250,0.2)">🔌 MCP — الأدوات</button>
+
+        <button class="sidebar-tool-btn"
+          onclick="SandboxEngine&&SandboxEngine.openPanel()"
+          style="color:#34d399;border-color:rgba(52,211,153,0.2)">🧪 Sandbox</button>
+
+        <button class="sidebar-tool-btn"
+          onclick="MemorySync&&MemorySync.openPanel()"
+          style="color:#a78bfa;border-color:rgba(167,139,250,0.2)">🧠 الذاكرة والمزامنة</button>
+        <button class="sidebar-tool-btn" onclick="Logger.openPanel()">
+          📋 سجل العمليات <kbd style="font-size:9px;color:#334155;margin-right:auto">Ctrl+L</kbd>
+        </button>
+        <button class="sidebar-tool-btn" onclick="PluginSystem&&PluginSystem.openPanel()">
+          🧩 إدارة الإضافات
+        </button>
+        <button class="sidebar-tool-btn" onclick="MemoryViewer&&MemoryViewer.toggle()">
+          🧠 الذاكرة الذكية
+        </button>
+        <button class="sidebar-tool-btn" onclick="window._showAgentStatus&&window._showAgentStatus()">
+          🤖 حالة الوكيل
+        </button>
+      </div>
+
+      <!-- أدوات v4 الجديدة -->
+      <div style="border-top:1px solid rgba(220,38,38,0.1);padding-top:10px">
+        <div style="font-size:10px;color:#475569;margin-bottom:6px;padding:0 4px">🚀 منصة التنفيذ — v4</div>
+        <button class="sidebar-tool-btn" onclick="DeploymentEngine&&DeploymentEngine.openPanel()">🚀 نشر المشروع</button>
+        <button class="sidebar-tool-btn" onclick="TerminalEngine&&TerminalEngine.openPanel()">💻 Terminal</button>
+        <button class="sidebar-tool-btn" onclick="GitManager&&GitManager.openPanel()">🔀 Git Manager</button>
+        <button class="sidebar-tool-btn" onclick="DatabaseManager&&DatabaseManager.openPanel()">🗄️ قاعدة البيانات</button>
+        <button class="sidebar-tool-btn" onclick="VirtualFS&&VirtualFS.openPanel()">📂 مدير الملفات</button>
+        <button class="sidebar-tool-btn" onclick="ApiHub&&ApiHub.openPanel()">📡 API Hub</button>
+        <button class="sidebar-tool-btn" onclick="JobQueue&&JobQueue.openPanel()">⚙️ قائمة المهام</button>
+        <button class="sidebar-tool-btn" onclick="MonitoringDashboard&&MonitoringDashboard.open()">📊 لوحة المراقبة</button>
+        <button class="sidebar-tool-btn" onclick="ArtifactManager&&ArtifactManager.openPanel()">📦 الملفات الناتجة</button>
+        <button class="sidebar-tool-btn" onclick="BrowserAutomation&&BrowserAutomation.openPanel()">🌐 اختبار المتصفح</button>
+        <button class="sidebar-tool-btn" onclick="RecoveryManager&&RecoveryManager.openPanel()">♻️ الاستعادة</button>
+        <button class="sidebar-tool-btn" onclick="ResourceManager&&ResourceManager.openPanel()">📈 الموارد</button>
+        <button class="sidebar-tool-btn" onclick="FileReader2&&FileReader2.openPanel()" style="color:#ffd60a;border-color:rgba(255,214,10,0.2)">📄 قارئ الملفات</button>
+        <button class="sidebar-tool-btn" onclick="AgentMode&&AgentMode.openPanel()" style="color:#c084fc;border-color:rgba(94,92,230,0.2)">🤖 وضع الوكيل</button>
+        <button class="sidebar-tool-btn" onclick="CodeRunner&&CodeRunner.openEditor()" style="color:#30d158;border-color:rgba(48,209,88,0.2)">🖥️ تشغيل الكود</button>
+        <button class="sidebar-tool-btn" onclick="VideoGenerator&&VideoGenerator.openPanel()" style="color:#c084fc;border-color:rgba(191,90,242,0.2)">🎬 مولّد الفيديو</button>
+        <button class="sidebar-tool-btn" onclick="MusicGenerator&&MusicGenerator.openPanel()" style="color:#38bdf8;border-color:rgba(50,210,255,0.2)">🎵 مولّد الموسيقى</button>
+      </div>
+
+      <!-- معلومات في الأسفل -->
+      <div style="margin-top:auto;padding-top:12px;border-top:1px solid rgba(220,38,38,0.1)">
+        <!-- زر وضع التعديل الذاتي -->
+        <div id="toggle-self-edit" class="off" style="margin-bottom:8px">
+          <span>🔄 تعديل ذاتي</span>
+          <div class="toggle-dot"></div>
+        </div>
+        <!-- ══ اختيار المنصة ══ -->
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;color:#475569;margin-bottom:5px;text-align:center">المنصة</div>
+          <div id="platform-selector" style="display:flex;gap:4px"></div>
+        </div>
+
+        <!-- زر إدارة مفاتيح Gemini -->
+        <button onclick="openKeysManager()" style="
+          width:100%;padding:8px;border-radius:10px;
+          background:rgba(220,38,38,0.1);
+          border:1px solid rgba(220,38,38,0.25);
+          color:#fca5a5;font-size:12px;cursor:pointer;
+          transition:all 0.2s;font-family:inherit;
+          margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:6px;
+        " onmouseover="this.style.background='rgba(220,38,38,0.2)'" onmouseout="this.style.background='rgba(220,38,38,0.1)'">
+          🔑 مفاتيح Gemini
+        </button>
+
+        <!-- زر مفاتيح المزودين -->
+        <button onclick="openProvidersManager()" style="width:100%;padding:8px;border-radius:10px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.25);color:#c4b5fd;font-size:12px;cursor:pointer;transition:all 0.2s;font-family:inherit;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:6px;" onmouseover="this.style.background='rgba(124,58,237,0.2)'" onmouseout="this.style.background='rgba(124,58,237,0.1)'">
+          🔑 OpenRouter · Cerebras · FAL
+        </button>
+
+        <!-- زر مسح المحادثة -->
+        <button id="clear-chat-btn" style="
+          width:100%;padding:8px;border-radius:10px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+          color:#64748b;font-size:12px;cursor:pointer;
+          transition:all 0.2s;font-family:inherit;
+        " onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#64748b'">
+          🗑️ مسح المحادثة
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── منطقة الشات الرئيسية ── -->
+    <main style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+
+      <!-- شريط العنوان -->
+      <header style="
+        padding: 12px 20px;
+        background: rgba(0,0,0,0.5);
+        border-bottom: 1px solid rgba(220,38,38,0.12);
+        backdrop-filter: blur(10px);
+        display: flex; align-items: center; justify-content: space-between;
+        flex-shrink: 0;
+      ">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:18px;font-weight:800;color:#fca5a5">Galaoum AI Engine</div>
+          <span style="font-size:10px;background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.35);color:#fca5a5;padding:2px 8px;border-radius:999px">v6.0</span>
+          <!-- شارة نية الوكيل -->
+          <span id="agent-intent-hint" style="
+            display:none;font-size:10px;
+            background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);
+            color:#60a5fa;padding:2px 8px;border-radius:999px;
+          "></span>
+          <!-- شارة Smart Router — المزود المختار -->
+          <span id="sr-routing-badge" style="
+            display:none;font-size:10px;
+            background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);
+            color:#34d399;padding:2px 8px;border-radius:999px;transition:all .3s;
+          "></span>
+          <!-- شارة المزود المُستخدَم فعلياً -->
+          <span id="sr-used-badge" style="
+            display:none;font-size:10px;
+            background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);
+            color:#a78bfa;padding:2px 8px;border-radius:999px;transition:all .3s;
+          "></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <!-- زر تلقائي / يدوي -->
+          <button
+            id="auto-manual-toggle"
+            onclick="toggleAutoManual()"
+            style="
+              display:inline-flex;align-items:center;gap:2px;
+              background:rgba(0,0,0,0.35);
+              border:1px solid rgba(255,255,255,0.1);
+              border-radius:999px;padding:3px 4px;
+              cursor:pointer;font-family:inherit;
+              transition:all 0.2s;
+            "
+            onmouseover="this.style.borderColor='rgba(255,255,255,0.25)'"
+            onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'"
+          >🔀 تلقائي &nbsp; ⚙️ يدوي</button>
+
+          <span id="active-platform-badge" style="
+            font-size:11px;background:rgba(220,38,38,0.15);
+            border:1px solid rgba(220,38,38,0.3);color:#fca5a5;
+            padding:2px 10px;border-radius:999px;cursor:default;
+          ">🔀 تلقائي</span>
+          <button id="lp-toggle-btn" onclick="lpToggle()" title="لوحة المعاينة الحية">
+            👁️ معاينة
+          </button>
+
+          <!-- أزرار المرحلة 4 + الأغاني -->
+          <button onclick="openWebSearch()" style="background:linear-gradient(135deg,#1e3a6e,#1d4ed8);border:1px solid rgba(59,130,246,0.4);color:#93c5fd;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">🌐 بحث</button>
+          <button onclick="openModelComparison()" style="background:linear-gradient(135deg,#2d2245,#7c5cbf);border:1px solid rgba(124,92,191,0.4);color:#c4b5fd;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">⚖️ قارن</button>
+          <button onclick="openCustomAgents()" style="background:linear-gradient(135deg,#3a2000,#e07b00);border:1px solid rgba(245,166,35,0.4);color:#fcd34d;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">🤖 وكلاء</button>
+          <button onclick="openSongCreator()" style="background:linear-gradient(135deg,#3b0764,#a855f7);border:1px solid rgba(168,85,247,0.4);color:#e9d5ff;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">🎵 أغاني</button>
+
+          <!-- زر نظام التفكير والأدوات — v6.0 -->
+          <button id="agent-loop-btn"
+            onclick="AgentLoop&&AgentLoop.toggle()"
+            title="نظام التفكير والأدوات — انقر للتفعيل أو فتح لوحة الأدوات بزر يمين الماوس"
+            oncontextmenu="event.preventDefault();AgentLoop&&AgentLoop.openPanel()">
+            🛠️ أدوات
+          </button>
+
+          <button onclick="Logger.openPanel()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;padding:5px 11px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">📋 سجل</button>
+          <button onclick="PluginSystem&&PluginSystem.openPanel()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;padding:5px 11px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">🧩 إضافات</button>
+          <!-- ═══ أزرار v6 الجديدة ═══ -->
+          <button onclick="ConversationSearch&&ConversationSearch.open()" title="بحث في المحادثات (Ctrl+K)"
+            style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s;"
+            onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">🔍 بحث</button>
+          <button onclick="ExportConversation&&ExportConversation.openPanel()" title="تصدير المحادثة (Ctrl+Shift+E)"
+            style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fcd34d;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s;"
+            onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">💾 تصدير</button>
+          <button onclick="ShortcutsPanel&&ShortcutsPanel.open()" title="لوحة الاختصارات (?)"
+            style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#a5b4fc;border-radius:8px;padding:5px 11px;cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s;"
+            onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">⌨️ ?</button>
+          <div style="font-size:11px;color:#475569">تطوير: عمار جلعوم 🚀</div>
+        </div>
+      </header>
+
+      <!-- صندوق الشات -->
+      <div id="chat-section" style="
+        flex:1; display:flex; flex-direction:column;
+        border-radius:0; overflow:hidden;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(0,0,0,0.25);
+        margin: 0;
+      ">
+        <!-- شريط حالة التعديل الذاتي -->
+        <div id="self-edit-badge" style="display:none;padding:6px 14px;background:rgba(220,38,38,0.12);border-bottom:1px solid rgba(220,38,38,0.2)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="animation:pulse 2s infinite;display:inline-block">🔴</span>
+            <span style="font-size:12px;color:#fca5a5;font-weight:600">وضع التعديل الذاتي نشط</span>
+            <span style="font-size:11px;color:#64748b">— كل رسالة ستعدّل المنصة وترفعها مباشرة</span>
+          </div>
+        </div>
+
+        <!-- رسائل الشات -->
+        <div id="chat-box" style="
+          flex: 1; overflow-y: auto;
+          padding: 20px 16px; display: flex;
+          flex-direction: column; gap: 14px;
+          scroll-behavior: smooth;
+        "></div>
+
+        <!-- chips الملفات المرفقة -->
+        <div id="file-chips-bar" style="
+          display: none; flex-wrap: wrap; gap: 6px;
+          padding: 8px 14px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+          background: rgba(0,0,0,0.2);
+        "></div>
+
+        <!-- أزرار الإجراءات السريعة -->
+        <div id="quick-actions"></div>
+
+        <!-- نموذج الإدخال -->
+        <form id="chat-form" style="
+          padding: 12px 14px;
+          border-top: 1px solid rgba(220,38,38,0.12);
+          background: rgba(0,0,0,0.4);
+          display: flex; align-items: flex-end; gap: 8px;
+        ">
+          <!-- زر رفع الملفات -->
+          <button type="button" id="upload-btn" title="رفع ملف أو صورة أو ZIP" style="
+            flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #94a3b8; font-size: 18px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+          " onmouseover="this.style.background='rgba(220,38,38,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+            📎
+          </button>
+          <input type="file" id="file-input" multiple
+            accept=".zip,.js,.ts,.jsx,.tsx,.html,.css,.py,.go,.rs,.json,.yaml,.yml,.toml,.txt,.md,.jpg,.jpeg,.png,.gif,.webp,.bmp,.avif"
+            style="display:none">
+
+          <!-- حقل النص -->
+          <textarea id="user-input"
+            placeholder="اطلب تعديل أو تحليل ملف، أو اكتب سؤالاً..."
+            rows="1"
+            style="
+              flex: 1; resize: none; border-radius: 14px;
+              background: rgba(255,255,255,0.06);
+              border: 1px solid rgba(255,255,255,0.1);
+              color: #f1f5f9; padding: 10px 14px;
+              font-size: 14px; font-family: inherit; line-height: 1.5;
+              max-height: 160px; overflow-y: auto;
+            "
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();document.getElementById('chat-form').requestSubmit()}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"
+          ></textarea>
+
+          <!-- زر الإرسال -->
+          <button type="submit" id="send-btn" style="
+            flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px;
+            background: linear-gradient(135deg, #dc2626, #991b1b);
+            border: none; color: #fff; font-size: 18px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(220,38,38,0.35);
+          ">➤</button>
+        </form>
+      <!-- شريط حالة الوكيل — داخل التخطيط تحت حقل الكتابة مباشرة -->
+      <div id="agent-status-bar">
+        <div class="agent-active-dot"></div>
+        <span id="agent-bar-label">جاري المعالجة...</span>
+      </div>
+    </main>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       مكتبات خارجية (مرة واحدة فقط)
+       ════════════════════════════════════════════ -->
+
+  <!-- JSZip — ضغط وفك ضغط الملفات -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- JSZip fallback -->
+  <script>
+    if (typeof JSZip === 'undefined') {
+      var s = document.createElement('script');
+      s.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+      document.head.appendChild(s);
+    }
+  </script>
+
+  <!-- ════════════════════════════════════════════
+       🆕 الأنظمة الجديدة — v4 (طبقة 1: الأساسيات)
+       ════════════════════════════════════════════ -->
+  <script src="js/logger.js" defer></script>
+  <script src="js/security.js" defer></script>
+  <script src="js/memory-enhanced.js" defer></script>
+  <script src="js/plugins.js" defer></script>
+  <script src="js/agent.js" defer></script>
+  <script src="js/project-analyzer.js" defer></script>
+  <script src="js/sandbox.js" defer></script>
+  <script src="js/auto-test.js" defer></script>
+
+  <!-- ════════════════════════════════════════════
+       🆕 الأنظمة الجديدة — v5 (طبقة 2: المحركات)
+       يعتمد على طبقة 1 — يُحمَّل بعدها
+       ════════════════════════════════════════════ -->
+  <script src="js/performance.js" defer></script>
+  <script src="js/security-center.js" defer></script>
+  <script src="js/model-manager.js" defer></script>
+  <script src="js/tool-manager.js" defer></script>
+  <script src="js/knowledge-graph.js" defer></script>
+  <script src="js/semantic-search.js" defer></script>
+  <script src="js/self-healing.js" defer></script>
+  <script src="js/quality-gate.js" defer></script>
+  <script src="js/decision.js" defer></script>
+  <script src="js/workflow.js" defer></script>
+  <script src="js/executive.js" defer></script>
+  <script src="js/docs-generator.js" defer></script>
+
+  <!-- ════════════════════════════════════════════
+       ملفات JavaScript الأصلية (بالترتيب الصحيح)
+       ════════════════════════════════════════════ -->
+  <script src="js/config.js" defer></script>
+  <script src="js/utils.js" defer></script>
+  <script src="js/storage.js" defer></script>
+  <script src="js/prompts.js" defer></script>
+  <script src="js/platform.js" defer></script>
+  <script src="js/api.js" defer></script>
+  <script src="js/ui.js" defer></script>
+  <script src="js/upload.js" defer></script>
+  <script src="js/settings.js" defer></script>
+  <script src="js/keys-manager.js" defer></script>
+  <script src="js/providers-keys-manager.js" defer></script>
+  <script src="js/preview-panel.js" defer></script>
+  <script src="js/chat.js" defer></script>
+  <script src="js/app.js" defer></script>
+
+  <!-- ════════════════════════════════════════════
+       🆕 أنظمة v4 الجديدة
+       ════════════════════════════════════════════ -->
+  <script src="js/smart-cache.js" defer></script>
+  <script src="js/resource-manager.js" defer></script>
+  <script src="js/job-queue.js" defer></script>
+  <script src="js/artifact-manager.js" defer></script>
+  <script src="js/recovery-manager.js" defer></script>
+  <script src="js/api-hub.js" defer></script>
+  <script src="js/file-system-manager.js" defer></script>
+  <script src="js/database-manager.js" defer></script>
+  <script src="js/git-manager.js" defer></script>
+  <script src="js/terminal-engine.js" defer></script>
+  <script src="js/deployment-engine.js" defer></script>
+  <script src="js/browser-automation.js" defer></script>
+  <script src="js/monitoring-dashboard.js" defer></script>
+
+  <!-- ════════════════════════════════════════════
+       🆕 ملف التكامل (يُحمَّل أخيراً)
+       ════════════════════════════════════════════ -->
+  <script src="js/integrations.js" defer></script>
+  <script src="js/key-selector.js" defer></script>
+  <script src="js/parallel-engine.js" defer></script>
+  <script src="js/task-planner.js" defer></script>
+  <script src="js/mcp-client.js" defer></script>
+  <script src="js/memory-sync.js" defer></script>
+  <script src="js/sandbox-engine.js" defer></script>
+
+  <!-- ════════════════════════════════════════════
+       🆕 20 نظام جديد مقترح — إضافة v5.1 (بدون حذف أي شيء)
+       ════════════════════════════════════════════ -->
+  <script src="js/consensus-engine.js" defer></script>
+  <script src="js/capability-registry.js" defer></script>
+  <script src="js/model-benchmark.js" defer></script>
+  <script src="js/cost-manager.js" defer></script>
+  <script src="js/ai-workflow-engine.js" defer></script>
+  <script src="js/context-manager.js" defer></script>
+  <script src="js/project-intelligence.js" defer></script>
+  <script src="js/dependency-analyzer.js" defer></script>
+  <script src="js/auto-refactor.js" defer></script>
+  <script src="js/quality-score.js" defer></script>
+  <script src="js/ai-code-review.js" defer></script>
+  <script src="js/live-collaboration.js" defer></script>
+  <script src="js/tool-registry.js" defer></script>
+  <script src="js/prompt-optimizer.js" defer></script>
+  <script src="js/autonomous-decision.js" defer></script>
+  <script src="js/rollback-engine.js" defer></script>
+  <script src="js/resource-optimizer.js" defer></script>
+  <script src="js/ai-learning-engine.js" defer></script>
+  <script src="js/provider-gateway.js" defer></script>
+  <script src="js/global-orchestrator.js" defer></script>
+  <script src="js/systems-bootstrap.js" defer></script>
+
+  <!-- ════════════════════════════════════ لوحات v4 ════════ -->
+
+  <!-- 🚀 Deploy Panel -->
+  <div id="deploy-panel" class="g-panel" onclick="if(event.target===this)DeploymentEngine.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">🚀 محرك النشر</div>
+        <button class="g-panel-close" onclick="DeploymentEngine.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+          <div class="g-label">اسم النشر</div>
+          <input id="deploy-name-input" class="g-input" placeholder="Galaoum v4 Deploy" dir="ltr">
+          <div style="display:flex;gap:8px">
+            <button class="g-btn g-btn-green" onclick="(async()=>{
+              const files={};
+              if(typeof Memory!=='undefined'&&Memory.getProject()?.files){Memory.getProject().files.forEach(f=>files[f]='');}
+              const name=document.getElementById('deploy-name-input')?.value||'Galaoum Deploy';
+              try{const r=await DeploymentEngine.deployWithFiles(files,name);Toast.success('✅ نشر ناجح: '+r.url);}
+              catch(e){Toast.error('❌ '+e.message);}
+              DeploymentEngine.openPanel();
+            })()">🚀 نشر الآن</button>
+            <button class="g-btn" onclick="DeploymentEngine.openPanel()">🔄 تحديث</button>
+          </div>
+        </div>
+        <div class="g-label" style="margin-bottom:8px">📋 سجل النشرات</div>
+        <div id="deploy-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💻 Terminal Panel -->
+  <div id="terminal-panel" class="g-panel" onclick="if(event.target===this)TerminalEngine.closePanel()">
+    <div class="g-panel-box" style="max-width:840px">
+      <div class="g-panel-header">
+        <div class="g-panel-title">💻 Terminal</div>
+        <div style="font-size:10px;color:#475569">اضغط Enter للتنفيذ | ↑↓ للتاريخ</div>
+        <button class="g-panel-close" onclick="TerminalEngine.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div id="terminal-output"></div>
+        <div class="term-prompt-row">
+          <span class="term-prompt-sym">$ </span>
+          <input id="terminal-input" placeholder="npm install | node -e 'console.log(1+1)' | git status | help ..." dir="ltr" onkeydown="TerminalEngine.handleInput(event)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔀 Git Panel -->
+  <div id="git-panel" class="g-panel" onclick="if(event.target===this)GitManager.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">🔀 Git Manager</div>
+        <button class="g-panel-close" onclick="GitManager.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+          <div style="display:flex;gap:6px">
+            <input id="git-repo-name" class="g-input" placeholder="اسم المستودع" style="flex:1">
+            <button class="g-btn" onclick="GitManager.init_repo(document.getElementById('git-repo-name').value);GitManager.openPanel()">تهيئة</button>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input id="git-clone-url" class="g-input" placeholder="رابط GitHub (للاستنساخ)" style="flex:1" dir="ltr">
+            <input id="git-token" class="g-input" placeholder="Token" style="width:100px" dir="ltr" type="password">
+            <button class="g-btn" onclick="GitManager.clone(document.getElementById('git-clone-url').value,document.getElementById('git-token').value).then(()=>GitManager.openPanel()).catch(e=>Toast.error(e.message))">Clone</button>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input id="git-commit-msg" class="g-input" placeholder="رسالة الـ commit" style="flex:1">
+            <button class="g-btn g-btn-green" onclick="GitManager.commit(document.getElementById('git-commit-msg').value,[]);GitManager.openPanel()">Commit</button>
+          </div>
+        </div>
+        <div id="git-info"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🗄️ Database Panel -->
+  <div id="db-panel" class="g-panel" onclick="if(event.target===this)DatabaseManager.closePanel()">
+    <div class="g-panel-box" style="max-width:860px">
+      <div class="g-panel-header">
+        <div class="g-panel-title">🗄️ مدير قواعد البيانات</div>
+        <button class="g-panel-close" onclick="DatabaseManager.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body" style="display:grid;grid-template-columns:180px 1fr;gap:12px;height:60vh">
+        <div>
+          <div class="g-label" style="margin-bottom:6px">الجداول (SQLite)</div>
+          <div id="db-tables"></div>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
+            <button class="g-btn" onclick="DatabaseManager.backup()">💾 Backup</button>
+            <button class="g-btn" onclick="(()=>{const i=document.createElement('input');i.type='file';i.accept='.sqlite,.db';i.onchange=e=>DatabaseManager.restore(e.target.files[0]).then(()=>Toast.success('تم'));i.click()})()">♻️ Restore</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:6px">
+            <textarea id="db-query-input" class="g-input" placeholder="SELECT * FROM table_name" rows="2" dir="ltr" style="flex:1;resize:vertical"></textarea>
+            <button class="g-btn g-btn-green" onclick="DatabaseManager.runQueryFromUI()" style="align-self:flex-end">▶ تنفيذ</button>
+          </div>
+          <div id="db-results" style="flex:1;overflow:auto;background:rgba(0,0,0,0.3);border-radius:8px;padding:10px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📂 VFS Panel -->
+  <div id="vfs-panel" class="g-panel" onclick="if(event.target===this)VirtualFS.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">📂 مدير الملفات</div>
+        <button class="g-panel-close" onclick="VirtualFS.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <input id="vfs-path" class="g-input" placeholder="مسار الملف" style="flex:1" dir="ltr">
+          <button class="g-btn" onclick="VirtualFS.write(document.getElementById('vfs-path').value,'').then(()=>VirtualFS.openPanel())">إنشاء</button>
+          <button class="g-btn" onclick="VirtualFS.del(document.getElementById('vfs-path').value).then(()=>VirtualFS.openPanel())">حذف</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <input id="vfs-search" class="g-input" placeholder="بحث في الملفات..." style="flex:1">
+          <button class="g-btn" onclick="VirtualFS.search(document.getElementById('vfs-search').value,'/').then(r=>document.getElementById('vfs-list').innerHTML=r.map(f=>'<div class=vfs-entry>'+f.path+'<br><small style=color:#475569>'+f.snippet.slice(0,60)+'</small></div>').join('')||'<div style=color:#475569;padding:8px>لا نتائج</div>')">بحث</button>
+          <button class="g-btn" onclick="VirtualFS.compress([],'archive.zip')">ضغط</button>
+        </div>
+        <div id="vfs-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📡 API Hub Panel -->
+  <div id="apihub-panel" class="g-panel" onclick="if(event.target===this)ApiHub.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">📡 API Hub</div>
+        <button class="g-panel-close" onclick="ApiHub.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;background:rgba(0,0,0,0.3);border-radius:10px;padding:12px">
+          <div class="g-label">إضافة API جديد</div>
+          <div style="display:flex;gap:6px">
+            <input id="api-name" class="g-input" placeholder="الاسم" style="flex:1">
+            <input id="api-url" class="g-input" placeholder="URL" style="flex:2" dir="ltr">
+          </div>
+          <button class="g-btn g-btn-green" onclick="ApiHub.register({name:document.getElementById('api-name').value,baseUrl:document.getElementById('api-url').value});ApiHub.openPanel()">➕ تسجيل</button>
+        </div>
+        <div id="apihub-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚙️ Jobs Panel -->
+  <div id="jobs-panel" class="g-panel" onclick="if(event.target===this)JobQueue.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">⚙️ قائمة المهام</div>
+        <button class="g-panel-close" onclick="JobQueue.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <button class="g-btn g-btn-green" onclick="JobQueue.addSampleJob();JobQueue.openPanel()">➕ مهمة تجريبية</button>
+          <button class="g-btn" onclick="JobQueue.getJobs().filter(j=>j.status==='done'||j.status==='failed').forEach(j=>JobQueue.remove(j.id));JobQueue.openPanel()">🧹 مسح المنتهية</button>
+        </div>
+        <div id="jobs-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📊 Monitor Panel -->
+  <div id="monitor-panel" class="g-panel" onclick="if(event.target===this)MonitoringDashboard.close()">
+    <div class="g-panel-box" style="max-width:900px">
+      <div class="g-panel-header">
+        <div class="g-panel-title">📊 لوحة المراقبة المباشرة</div>
+        <button class="g-panel-close" onclick="MonitoringDashboard.close()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div class="mon-grid">
+          <div class="mon-card">
+            <div class="mon-card-title">💾 RAM</div>
+            <div id="mon-ram" class="mon-stat">—</div>
+            <div class="rm-bar"><div id="rm-ram-bar" class="rm-fill" style="width:0%;background:#22c55e"></div></div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">⚡ CPU تأخير</div>
+            <div id="mon-cpu" class="mon-stat">—</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">💿 التخزين</div>
+            <div id="mon-storage" class="mon-stat">—</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">⏱️ وقت التشغيل</div>
+            <div id="mon-uptime" class="mon-stat">—</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">🔄 مهام نشطة</div>
+            <div id="mon-ops" class="mon-stat">0</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">⚡ Cache Hit Rate</div>
+            <div id="mon-cache-hit" class="mon-stat">—</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="mon-card">
+            <div class="mon-section-title">حالة الأنظمة</div>
+            <div id="mon-agents" style="max-height:200px;overflow-y:auto"></div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-section-title">الأدوات</div>
+            <div id="mon-tools" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"></div>
+            <div class="mon-section-title">المهام</div>
+            <div id="mon-jobs"></div>
+          </div>
+        </div>
+        <div class="mon-card" style="margin-top:12px">
+          <div class="mon-section-title">السجلات المباشرة</div>
+          <div id="mon-logs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📦 Artifact Panel -->
+  <div id="artifact-panel" class="g-panel" onclick="if(event.target===this)ArtifactManager.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">📦 الملفات الناتجة</div>
+        <button class="g-panel-close" onclick="ArtifactManager.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <button class="g-btn" onclick="ArtifactManager.openPanel()">🔄 تحديث</button>
+          <button class="g-btn" onclick="ArtifactManager.cleanup(30).then(n=>{Toast.success('تم حذف '+n+' قديم');ArtifactManager.openPanel()})">🧹 تنظيف (+30 يوم)</button>
+        </div>
+        <div id="artifact-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🌐 Browser Automation Panel -->
+  <div id="browser-panel" class="g-panel" onclick="if(event.target===this)BrowserAutomation.closePanel()">
+    <div class="g-panel-box" style="max-width:820px">
+      <div class="g-panel-header">
+        <div class="g-panel-title">🌐 اختبار المتصفح التلقائي</div>
+        <button class="g-panel-close" onclick="BrowserAutomation.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <input id="ba-url-input" class="g-input" placeholder="https://example.com أو ضع HTML مباشرة" style="flex:1" dir="ltr">
+          <button class="g-btn g-btn-green" onclick="BrowserAutomation.startTestFromUI()">▶ ابدأ الاختبار</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div class="g-label" style="margin-bottom:4px">📜 سجل الاختبار</div>
+            <div id="ba-log"></div>
+          </div>
+          <div>
+            <div class="g-label" style="margin-bottom:4px">📊 التقرير</div>
+            <div id="ba-report" style="background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;min-height:100px">
+              <div style="color:#475569;font-size:11px">لم يبدأ اختبار بعد</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ♻️ Recovery Panel -->
+  <div id="recovery-panel" class="g-panel" onclick="if(event.target===this)RecoveryManager.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">♻️ مدير الاستعادة</div>
+        <button class="g-panel-close" onclick="RecoveryManager.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="g-btn g-btn-green" onclick="RecoveryManager.snapshot('يدوي — '+new Date().toLocaleTimeString('ar'));RecoveryManager.openPanel()">📸 أخذ Snapshot</button>
+          <button class="g-btn" onclick="try{RecoveryManager.restoreLast();RecoveryManager.closePanel();}catch(e){Toast.error(e.message)}">♻️ استعادة الأخير</button>
+          <button class="g-btn" style="border-color:rgba(220,38,38,0.4);color:#f87171" onclick="if(confirm('Panic Recovery — استعادة كاملة؟'))RecoveryManager.panic()">🚨 Panic Recovery</button>
+        </div>
+        <div id="recovery-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📈 Resource Panel -->
+  <div id="resource-panel" class="g-panel" onclick="if(event.target===this)ResourceManager.closePanel()">
+    <div class="g-panel-box">
+      <div class="g-panel-header">
+        <div class="g-panel-title">📈 مدير الموارد</div>
+        <button class="g-panel-close" onclick="ResourceManager.closePanel()">✕</button>
+      </div>
+      <div class="g-panel-body">
+        <div class="mon-grid">
+          <div class="mon-card">
+            <div class="mon-card-title">💾 RAM المستخدم</div>
+            <div id="rm-ram" class="mon-stat">—</div>
+            <div class="rm-bar"><div id="rm-ram-bar" class="rm-fill" style="width:0%"></div></div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">⚡ CPU (تأخير)</div>
+            <div id="rm-cpu" class="mon-stat">—</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">💿 التخزين</div>
+            <div id="rm-storage" class="mon-stat">—</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">🔄 عمليات جارية</div>
+            <div id="rm-ops" class="mon-stat">0</div>
+          </div>
+          <div class="mon-card">
+            <div class="mon-card-title">⏱️ وقت التشغيل</div>
+            <div id="rm-uptime" class="mon-stat">—</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="g-btn" onclick="ResourceManager.sample().then(()=>Toast.success('تم تحديث القياسات'))">🔄 تحديث</button>
+          <button class="g-btn g-btn-green" onclick="ResourceManager.freeMemory()">🧹 تحرير الذاكرة</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- شريط تقدم Workflow (مخفي افتراضياً) -->
+  <div id="workflow-progress" style="
+    display:none; position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:rgba(15,23,42,0.95); border:1px solid rgba(99,102,241,0.3);
+    border-radius:30px; padding:8px 18px; gap:10px; align-items:center;
+    backdrop-filter:blur(12px); z-index:9999; font-size:18px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  "></div>
+
+  <!-- ════════════════════════════════════════════
+       لوحة المعاينة الحية — تنزلق من اليمين
+       ════════════════════════════════════════════ -->
+  <div id="live-preview-panel">
+    <div id="lp-header">
+      <div id="lp-header-title">👁️ المعاينة الحية <span class="lp-dot">●</span></div>
+      <button id="lp-close-btn" onclick="PreviewPanel.hide()" title="إغلاق">✕</button>
+    </div>
+    <div id="lp-body">
+      <div class="lp-center">
+        <div style="font-size:40px">👁️</div>
+        <div class="lp-hint">ستظهر هنا معاينة مباشرة<br>عند توليد الصور، تعديل الكود،<br>البحث، أو النشر</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ── تبديل اللوحة يدوياً ── */
+  function lpToggle() {
+    const panel = document.getElementById('live-preview-panel');
+    const btn   = document.getElementById('lp-toggle-btn');
+    if (!panel) return;
+    if (panel.classList.contains('open')) {
+      PreviewPanel.hide();
+      if (btn) btn.classList.remove('has-content');
+    } else {
+      PreviewPanel.show('المعاينة الحية', '👁️');
+    }
+  }
+
+  /* ── إضاءة زر المعاينة عند وجود محتوى ── */
+  function lpActivate() {
+    const btn = document.getElementById('lp-toggle-btn');
+    if (btn) btn.classList.add('has-content');
+    const panel = document.getElementById('live-preview-panel');
+    if (panel && !panel.classList.contains('open')) {
+      PreviewPanel.show('', '');
+    }
+  }
+  </script>
+
+
+
+  <!-- 📄 File Reader Panel -->
+  <div id="file-reader-panel" onclick="if(event.target===this)FileReader2.closePanel()">
+    <div class="fr-box">
+      <div class="fr-header">
+        <div class="fr-title">📄 قارئ الملفات الذكي — PDF · Word · Excel · Text</div>
+        <button class="gen-panel-close" onclick="FileReader2.closePanel()">✕</button>
+      </div>
+      <div class="fr-body">
+        <div class="fr-drop-zone" onclick="document.getElementById('fr-file-input').click()"
+             ondragover="event.preventDefault()"
+             ondrop="event.preventDefault();document.getElementById('fr-file-input').files=event.dataTransfer.files;FileReader2.handleUpload(document.getElementById('fr-file-input'))">
+          <div class="fr-drop-icon">📂</div>
+          <div class="fr-drop-text">اسحب ملفك هنا أو اضغط للاختيار</div>
+          <div class="fr-drop-hint">يدعم: PDF · DOCX · TXT · CSV · JS · PY · HTML</div>
+          <input type="file" id="fr-file-input" style="display:none"
+                 accept=".pdf,.doc,.docx,.txt,.md,.csv,.js,.ts,.py,.html,.css,.json,.xml,.yaml"
+                 onchange="FileReader2.handleUpload(this)">
+        </div>
+        <div class="fr-status" id="fr-status">اختر ملفاً للبدء</div>
+        <div id="fr-result"></div>
+        <div class="fr-ask-wrap" id="fr-ask-wrap">
+          <input type="text" class="fr-ask-input" id="fr-question" placeholder="اسأل عن محتوى الملف... مثال: لخّص هذا الملف">
+          <button class="fr-ask-btn" onclick="FileReader2.askAboutFile()">🤖 اسأل</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🤖 Agent Mode Panel -->
+  <div id="agent-mode-panel" onclick="if(event.target===this)AgentMode.closePanel()">
+    <div class="am-box">
+      <div class="am-header">
+        <div class="am-title">🤖 وضع الوكيل الذكي — Multi-Step Agent</div>
+        <button class="gen-panel-close" onclick="AgentMode.closePanel()">✕</button>
+      </div>
+      <div class="am-body">
+        <div>
+          <div class="gen-section-title">🎯 ما المهمة التي تريد إنجازها؟</div>
+          <textarea id="agent-goal" class="am-goal-input" placeholder="مثال: ابحث عن أفضل 5 مكتبات JavaScript لرسم الرسوم البيانية، قارن بينها، واكتب كود مثال لكل واحدة..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="am-run-btn" onclick="AgentMode.run()">🚀 تشغيل الوكيل</button>
+          <button onclick="AgentMode.stopRun()" style="padding:14px 20px;border-radius:14px;background:rgba(255,45,85,0.15);border:1px solid rgba(255,45,85,0.3);color:#ff2d55;cursor:pointer;font-family:inherit;font-weight:700">⏹ إيقاف</button>
+        </div>
+        <div class="gen-progress-wrap"><div class="gen-progress-bar" id="agent-pb"></div></div>
+        <div class="gen-status" id="agent-status">أدخل مهمتك وشاهد الوكيل ينفّذها خطوة بخطوة</div>
+        <div id="agent-steps" style="display:none;flex-direction:column;gap:6px"></div>
+        <pre id="agent-log" class="cr-output cr-output-hidden" style="display:block"></pre>
+        <div id="agent-output"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 🖥️ Code Runner Panel -->
+  <div id="code-runner-panel" onclick="if(event.target===this)CodeRunner.closeEditor()">
+    <div class="cr-panel-box">
+      <div class="cr-panel-header">
+        <div class="cr-panel-title">🖥️ محرّك تشغيل الكود — Python · JavaScript · HTML</div>
+        <button class="gen-panel-close" onclick="CodeRunner.closeEditor()">✕</button>
+      </div>
+      <div class="cr-panel-body">
+        <div class="cr-toolbar">
+          <select id="cr-lang-select" class="cr-lang-select">
+            <option value="python">🐍 Python</option>
+            <option value="javascript">⚡ JavaScript</option>
+            <option value="html">🌐 HTML</option>
+          </select>
+          <button class="cr-run-main-btn" onclick="CodeRunner.runEditor()">▶ تشغيل</button>
+          <button class="cr-copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('cr-editor-input').value)">📋 نسخ الكود</button>
+          <button class="cr-copy-btn" onclick="document.getElementById('cr-editor-input').value=''">🗑️ مسح</button>
+        </div>
+        <textarea id="cr-editor-input" class="cr-editor-input" placeholder="اكتب كودك هنا...
+# Python مثال:
+import math
+print(math.pi)
+print('مرحبا من Galaoum!')"></textarea>
+        <div id="cr-editor-output" class="cr-output cr-output-hidden"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 🎬 Video Generator Panel (MP4 Real) -->
+  <!-- 🎬 Video Generator Panel — Professional v2.0 -->
+  <div id="video-gen-panel" onclick="if(event.target===this)VideoGenerator.closePanel()"
+    style="position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(14px)">
+    <div class="gen-panel-box vg-pro-box">
+      <div class="gen-panel-header">
+        <div class="gen-panel-title">🎬 مولّد الفيديو الاحترافي v2.0</div>
+        <button class="gen-panel-close" onclick="VideoGenerator.closePanel()">✕</button>
+      </div>
+      <div class="vg-tabs-bar">
+        <button id="vg-tab-t2v"     class="vg-tab vg-tab-on" onclick="VideoGenerator._switchMode('t2v')">🎬 نص→فيديو</button>
+        <button id="vg-tab-i2v"     class="vg-tab"           onclick="VideoGenerator._switchMode('i2v')">🖼️ صورة→فيديو</button>
+        <button id="vg-tab-v2v"     class="vg-tab"           onclick="VideoGenerator._switchMode('v2v')">🔄 فيديو→فيديو</button>
+        <button id="vg-tab-multi"   class="vg-tab"           onclick="VideoGenerator._switchMode('multi')">🎭 متعدد المشاهد</button>
+        <button id="vg-tab-history" class="vg-tab"           onclick="VideoGenerator.openHistory()">📚 السجل</button>
+      </div>
+      <div class="gen-panel-body">
+        <!-- ══ نص → فيديو ══ -->
+        <div id="vg-section-t2v">
+          <div>
+            <div class="gen-section-title">✏️ صِف الفيديو</div>
+            <textarea id="vg-prompt" class="gen-prompt" rows="3" placeholder="مثال: غروب الشمس على شاطئ هادئ — أمواج بطيئة، سماء برتقالية..."></textarea>
+            <label class="vg-toggle-row" style="margin-top:7px">
+              <input type="checkbox" id="vg-auto-enhance" checked onchange="VideoGenerator._pick('autoEnhance',this.checked)" style="accent-color:#bf5af2;width:14px;height:14px">
+              <span style="font-size:12px;color:#94a3b8">✨ تحسين الـ Prompt تلقائياً بالذكاء الاصطناعي</span>
+            </label>
+          </div>
+          <div>
+            <div class="gen-section-title">🤖 نموذج HuggingFace</div>
+            <div id="vg-model-list" class="vg-chips-wrap"></div>
+          </div>
+          <div>
+            <div class="gen-section-title">🎨 الأسلوب البصري</div>
+            <div id="vg-style-list" class="vg-chips-wrap"></div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px">
+              <div class="gen-section-title">⚡ الجودة والسرعة</div>
+              <div id="vg-quality-list" class="vg-chips-wrap"></div>
+            </div>
+            <div style="flex:1;min-width:150px">
+              <div class="gen-section-title">⏱ مدة الفيديو</div>
+              <div id="vg-duration-list" class="vg-chips-wrap"></div>
+            </div>
+          </div>
+        </div>
+        <!-- ══ صورة → فيديو ══ -->
+        <div id="vg-section-i2v" style="display:none">
+          <div>
+            <div class="gen-section-title">📷 ارفع صورة لتحريكها</div>
+            <div id="vg-i2v-drop" class="vg-drop-zone" onclick="document.getElementById('vg-i2v-file').click()">
+              <div class="vg-drop-icon">🖼️</div>
+              <div class="vg-drop-text">اسحب صورة هنا أو اضغط للاختيار</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px">JPG · PNG · WebP</div>
+              <input type="file" id="vg-i2v-file" accept="image/*" style="display:none" onchange="VideoGenerator._handleImageUpload(this.files[0])">
+            </div>
+            <div id="vg-i2v-img-preview" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <div class="gen-section-title">🎬 وصف الحركة المطلوبة</div>
+            <textarea id="vg-i2v-prompt" class="gen-prompt" rows="2" placeholder="مثال: حرّك الصورة ببطء مع تكبير تدريجي وريح خفيفة..."></textarea>
+          </div>
+          <div>
+            <div class="gen-section-title">🎨 الأسلوب</div>
+            <div id="vg-style-list-i2v" class="vg-chips-wrap"></div>
+          </div>
+          <div class="vg-info-box"><b style="color:#c084fc">مزودو I2V:</b> Fal.ai (Wan I2V · Kling) ← Replicate (SVD) ← Pollinations (بديل مجاني)</div>
+        </div>
+        <!-- ══ فيديو → فيديو ══ -->
+        <div id="vg-section-v2v" style="display:none">
+          <div>
+            <div class="gen-section-title">📹 ارفع فيديو للتحويل</div>
+            <div id="vg-v2v-drop" class="vg-drop-zone" onclick="document.getElementById('vg-v2v-file').click()">
+              <div class="vg-drop-icon">🎞️</div>
+              <div class="vg-drop-text">اسحب فيديو هنا أو اضغط للاختيار</div>
+              <div style="font-size:11px;color:#475569;margin-top:4px">MP4 · WebM · MOV</div>
+              <input type="file" id="vg-v2v-file" accept="video/*" style="display:none" onchange="VideoGenerator._handleVideoUpload(this.files[0])">
+            </div>
+            <div id="vg-v2v-vid-preview" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <div class="gen-section-title">🔄 وصف التحويل المطلوب</div>
+            <textarea id="vg-v2v-prompt" class="gen-prompt" rows="2" placeholder="مثال: حوّل الفيديو إلى أسلوب أنمي ياباني..."></textarea>
+          </div>
+          <div>
+            <div class="gen-section-title">🎨 الأسلوب الجديد</div>
+            <div id="vg-style-list-v2v" class="vg-chips-wrap"></div>
+          </div>
+          <div class="vg-info-box vg-info-warn">⚠️ <b>V2V متاح عبر Fal.ai فقط</b> (يتطلب FAL_KEY).</div>
+        </div>
+        <!-- ══ متعدد المشاهد ══ -->
+        <div id="vg-section-multi" style="display:none">
+          <div>
+            <div class="gen-section-title">📖 القصة أو السيناريو</div>
+            <textarea id="vg-multi-story" class="gen-prompt" rows="5" placeholder="اكتب قصتك هنا... سيقسّمها الذكاء الاصطناعي إلى مشاهد تلقائياً مع الحفاظ على اتساق الشخصيات والخلفيات."></textarea>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div>
+              <div class="gen-section-title" style="margin-bottom:6px">🎬 عدد المشاهد (2–8)</div>
+              <div class="vg-scene-counter">
+                <button class="vg-scene-adj" onclick="VideoGenerator._sceneAdj(-1)">−</button>
+                <span id="vg-scene-count-val" class="vg-scene-count">3</span>
+                <button class="vg-scene-adj" onclick="VideoGenerator._sceneAdj(1)">+</button>
+              </div>
+            </div>
+            <div>
+              <div class="gen-section-title" style="margin-bottom:6px">🔗 الاتساق بين المشاهد</div>
+              <div class="vg-chips-wrap" style="gap:10px">
+                <label class="vg-check-chip"><input id="vc-ch" type="checkbox" checked onchange="VideoGenerator._updateConsistency()"> 👤 الشخصية</label>
+                <label class="vg-check-chip"><input id="vc-bg" type="checkbox" checked onchange="VideoGenerator._updateConsistency()"> 🏞️ الخلفية</label>
+                <label class="vg-check-chip"><input id="vc-lt" type="checkbox" checked onchange="VideoGenerator._updateConsistency()"> 💡 الإضاءة</label>
+                <label class="vg-check-chip"><input id="vc-st" type="checkbox" checked onchange="VideoGenerator._updateConsistency()"> 🎨 الأسلوب</label>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="gen-section-title">🎨 الأسلوب البصري للجميع</div>
+            <div id="vg-style-list-multi" class="vg-chips-wrap"></div>
+          </div>
+          <div class="vg-info-box">💡 <b>كيف يعمل:</b> تحليل القصة → تقسيم مشاهد → استخراج الشخصية/الخلفية/الإضاءة → توليد مع ضمان الاتساق.</div>
+        </div>
+        <!-- ══ السجل ══ -->
+        <div id="vg-section-history" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:14px;font-weight:700;color:#c084fc">📚 سجل الفيديوهات المولَّدة</div>
+            <button onclick="VideoGenerator._clearHistoryUI()" style="font-size:12px;color:#f87171;background:rgba(255,45,85,.08);border:1px solid rgba(255,45,85,.2);padding:5px 12px;border-radius:8px;cursor:pointer;font-family:inherit">🗑 مسح الكل</button>
+          </div>
+          <div id="vg-history-grid" class="vg-history-grid"></div>
+        </div>
+        <!-- ══ مشترك ══ -->
+        <div id="vg-token-hint" class="vg-providers-hint"></div>
+        <div style="display:flex;gap:8px;align-items:stretch">
+          <button id="vg-generate-btn" class="gen-btn-main" style="flex:1" onclick="VideoGenerator.generate()">🎬 توليد فيديو</button>
+          <button id="vg-cancel-btn" style="display:none;align-items:center;gap:6px;padding:0 18px;border-radius:14px;background:rgba(255,45,85,.15);border:1px solid rgba(255,45,85,.3);color:#fca5a5;cursor:pointer;font-family:inherit;font-size:14px;font-weight:700" onclick="VideoGenerator.cancelGeneration()">🛑 إلغاء</button>
+        </div>
+        <button onclick="VideoGenerator.testToken()" style="width:100%;padding:7px;border-radius:8px;background:rgba(255,255,255,.05);color:#64748b;border:1px solid rgba(255,255,255,.07);cursor:pointer;font-size:12px;font-family:inherit">🔑 فحص المزودين المتاحين</button>
+        <div>
+          <div class="gen-progress-wrap">
+            <div class="gen-progress-bar progress-bar" id="vg-progress-bar"></div>
+          </div>
+          <div class="gen-status" id="vg-status"></div>
+        </div>
+        <div id="vg-result-area"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="music-gen-panel" onclick="if(event.target===this)MusicGenerator.closePanel()">
+    <div class="gen-panel-box">
+      <div class="gen-panel-header">
+        <div class="gen-panel-title">🎵 مولّد الموسيقى والأغاني</div>
+        <button class="gen-panel-close" onclick="MusicGenerator.closePanel()">✕</button>
+      </div>
+      <div class="gen-panel-body">
+
+        <!-- الوصف -->
+        <div>
+          <div class="gen-section-title">✏️ صِف الموسيقى أو الأغنية</div>
+          <textarea id="mg-prompt" class="gen-prompt" placeholder="مثال: موسيقى هادئة للتأمل مع عزف عود وناي... أو أغنية فرح عربية لحفلة زفاف..."></textarea>
+        </div>
+
+        <!-- النوع -->
+        <div>
+          <div class="gen-section-title">🎸 نوع الموسيقى</div>
+          <div id="mg-genre-list" class="vg-chips-wrap"></div>
+        </div>
+
+        <!-- المزاج -->
+        <div>
+          <div class="gen-section-title">💫 المزاج</div>
+          <div id="mg-mood-list" class="vg-chips-wrap"></div>
+        </div>
+
+        <!-- الإيقاع -->
+        <div>
+          <div class="gen-section-title">🥁 الإيقاع</div>
+          <div id="mg-tempo-list" class="vg-chips-wrap"></div>
+        </div>
+
+        <!-- زر التوليد -->
+        <button class="gen-btn-main" onclick="MusicGenerator.generate()">🎵 تأليف الموسيقى الآن</button>
+
+        <!-- التقدم -->
+        <div>
+          <div class="gen-progress-wrap">
+            <div class="gen-progress-bar" id="mg-progress-bar"></div>
+          </div>
+          <div class="gen-status" id="mg-status"></div>
+        </div>
+
+        <!-- النتائج -->
+        <div id="mg-result-area"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/file-reader.js" defer></script>
+  <script src="js/voice-input.js" defer></script>
+  <script src="js/agent-mode.js" defer></script>
+  <script src="js/web-search.js" defer></script>
+  <script src="js/code-runner.js" defer></script>
+  <script src="js/smart-router.js" defer></script>
+  <script src="js/video-generator.js" defer></script>
+  <script src="js/music-generator.js" defer></script>
+  <!-- المرحلة 4 + الأغاني -->
+  <script src="js/model-comparison.js" defer></script>
+  <script src="js/custom-agents.js" defer></script>
+  <script src="js/song-creator.js" defer></script>
+
+  <!-- ═══════════════════════════════════════════
+       مكتبات خارجية — تُحمَّل قبل أنظمة v6
+       ═══════════════════════════════════════════ -->
+  <!-- html2canvas: لقطات الشاشة في BrowserAutomation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+
+  <!-- ═══════════════════════════════════════════
+       v6.0 — الميزات الثماني الجديدة
+       ═══════════════════════════════════════════ -->
+  <script src="js/streaming.js" defer></script>
+  <script src="js/slash-commands.js" defer></script>
+  <script src="js/syntax-highlight.js" defer></script>
+  <script src="js/conversation-search.js" defer></script>
+  <script src="js/export-conversation.js" defer></script>
+  <script src="js/context-compress.js" defer></script>
+  <script src="js/shortcuts-panel.js" defer></script>
+  <!-- يُحمَّل آخر ملف بعد جميع وحدات v6 لضمان جاهزيتها -->
+  <!-- نظام التفكير والأدوات — v6.0 (يجب تحميلها قبل v6-init) -->
+  <script src="js/thinking-engine.js" defer></script>
+  <script src="js/tool-system.js" defer></script>
+  <script src="js/agent-loop.js" defer></script>
+
+  <script src="js/v6-init.js" defer></script>
+
+  <!-- تسجيل Service Worker — PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => {
+            console.log('[PWA] Service Worker مُسجَّل:', reg.scope);
+            /* تحديث تلقائي عند وجود إصدار جديد */
+            reg.onupdatefound = () => {
+              const worker = reg.installing;
+              worker.onstatechange = () => {
+                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                  worker.postMessage({ type: 'SKIP_WAITING' });
+                  if (typeof Toast !== 'undefined') Toast.info('🔄 تحديث جديد متاح — سيُطبَّق عند إعادة التحميل');
+                }
+              };
+            };
+          })
+          .catch(e => console.warn('[PWA] فشل تسجيل SW:', e));
+      });
+    }
+
+    /* زر التثبيت */
+    let _pwaPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      _pwaPrompt = e;
+      /* إنشاء زر التثبيت */
+      const btn = document.createElement('button');
+      btn.id = 'pwa-install-btn';
+      btn.innerHTML = '📲 تثبيت التطبيق';
+      btn.style.cssText = `
+        position:fixed;bottom:24px;left:24px;z-index:8000;
+        background:linear-gradient(135deg,#7c3aed,#5b21b6);
+        color:#fff;border:none;border-radius:12px;padding:10px 18px;
+        font-size:13px;font-weight:700;font-family:inherit;
+        cursor:pointer;box-shadow:0 4px 20px rgba(124,58,237,.5);
+        animation:fadeInUp .4s ease;
+      `;
+      btn.onclick = () => {
+        _pwaPrompt.prompt();
+        _pwaPrompt.userChoice.then(c => {
+          if (c.outcome === 'accepted') { btn.remove(); if(typeof Toast!=='undefined') Toast.success('✅ تم تثبيت التطبيق'); }
+        });
+      };
+      document.body.appendChild(btn);
+    });
+  </script>
+</body>
+</html>
